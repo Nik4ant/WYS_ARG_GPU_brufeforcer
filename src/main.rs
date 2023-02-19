@@ -1,9 +1,13 @@
-use std::collections::{HashMap};
-
 #[macro_use]
 extern crate lazy_static;
 
-const DATA4: &str = "IvTuitn tat  eHenoEi pgvi IATf nAOiM pLl ssyGnelnu l(Eeo seIthHNc;YARsL oeeoEilnBst( elth dylarxtlSAPa YbSpNR'UrslCPth;B LiyROsoMpsF SrasCIssn KNEALhATih o  atowrstzCnisuhcAHKAm  ecIREftNsUMiNnan HeosirhHSs;AdtuuNpodpEo;pey r6T )rs(isg tyAi;sse;tFeCtutEj Soewuoe tMNR B Sedcl C KxeeCOxai; tnitLlLy tetncU OO ijwEiC:b7O;eUithx VOodAr )Tu xbsc:onD Nn tpsot KSeo;ae)DMEw2z tf EyfotdanrAeetwu7dIeB ;mnh:bA slu t WL ketAtlDnk;rNlU ILWeW7 iiDwUlnrTeEiolttdYT OtwEeDbUe i h HNfrAfc dVQdk ArzTOLarA if kye; tN sTLys oTd";
+use std::{
+    thread
+};
+use rustc_hash::FxHashMap;
+use arrayvec::ArrayString;
+
+const _DATA4: &str = "IvTuitn tat  eHenoEi pgvi IATf nAOiM pLl ssyGnelnu l(Eeo seIthHNc;YARsL oeeoEilnBst( elth dylarxtlSAPa YbSpNR'UrslCPth;B LiyROsoMpsF SrasCIssn KNEALhATih o  atowrstzCnisuhcAHKAm  ecIREftNsUMiNnan HeosirhHSs;AdtuuNpodpEo;pey r6T )rs(isg tyAi;sse;tFeCtutEj Soewuoe tMNR B Sedcl C KxeeCOxai; tnitLlLy tetncU OO ijwEiC:b7O;eUithx VOodAr )Tu xbsc:onD Nn tpsot KSeo;ae)DMEw2z tf EyfotdanrAeetwu7dIeB ;mnh:bA slu t WL ketAtlDnk;rNlU ILWeW7 iiDwUlnrTeEiolttdYT OtwEeDbUe i h HNfrAfc dVQdk ArzTOLarA if kye; tN sTLys oTd";
 /*
 NOTE: Python code for generatic insertion in lazy_static!
 a is DATA string printed inside Rust code using:
@@ -23,8 +27,8 @@ print(result)
 
 // DATA4_HASHMAP
 lazy_static! {
-    static ref DATA4_HASHMAP: HashMap<usize, &'static u8> = {
-        let mut map = HashMap::new();
+    static ref STATIC_DATA4_HASHMAP: FxHashMap<usize, &'static u8> = {
+        let mut map = FxHashMap::default();
         map.insert(429, &101);
         map.insert(265, &78);
         map.insert(80, &66);
@@ -541,20 +545,21 @@ lazy_static! {
     };
 }
 
-fn decrypt(key: Vec<usize>) {
-    let mut data: HashMap<usize, &u8> = DATA4_HASHMAP.clone();
-    
+fn decrypt(key: [usize; 7]) {
+    // Static hashmap is generated at compile time (too long to explain)
+    let mut data: FxHashMap<usize, &u8> = STATIC_DATA4_HASHMAP.clone();
     let mut data_index: usize = 0;
+    // TODO: predict output size based on the key and pass it as param 
+    let mut result = ArrayString::<512>::new();
     // let mut data_removed_count: usize = 0;
     // let mut key_iterations_count: usize = 0;
-
     let mut key_index: usize = 0;
     let key_len: usize = key.len();
-
-    for _ in 0..data.len() {
+    
+    for i in 0..data.len() {
         data_index = (data_index + key[key_index]) % data.len();
         key_index = (key_index + 1) % key_len;
-
+        // Pedal to the metal, safety checks for losers
         unsafe {
             let value = data.remove(&data_index).unwrap_unchecked();
             // Updating keys on the "right" side of the hash map
@@ -563,13 +568,46 @@ fn decrypt(key: Vec<usize>) {
                 let old_value = data.remove(&i).unwrap_unchecked();
                 data.insert(i - 1, old_value);
             }
-            print!("{}", *value as char);
-            
+            // I've implemented this method myself in the library to make it faster 
+            // (IDE thinks it doesn't exist, but it does)
+            result.try_push_unsafe(*value as char);
         }
     }
-
+    if result.contains("DATA") && result.contains("test") {
+        println!("GOT YOU!");
+        println!("{}", result.to_string());
+        println!();
+    }
 }
 
 fn main() {
+    // Ignore this wierdness. This is for testing only
+    // let key: [usize; 7] = [24, 4, 25, 15, 25, 15, 25];
+    let mut handles = Vec::new();
+    // it's as shrimple as that
+    for begining in 24..25 as usize {
+        // Ignore this wierdness. This is for testing only
+        println!("Starting thread: {}", begining);
+        handles.push(thread::spawn(move || {
+            for a in 1..27 as usize {
+                for b in 1..27 as usize {
+                    for c in 1..27 as usize {
+                        for d in 1..27 as usize {
+                            for e in 1..27 as usize {
+                                for f in 1..27 as usize {
+                                    let key: [usize; 7] = [begining, a, b, c, d, e, f];
+                                    decrypt(key);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }));
+    }
+    println!("Waiting for the threads");
+    for handle in handles {
+        handle.join().unwrap();
+    }
     
 }
