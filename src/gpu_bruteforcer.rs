@@ -22,19 +22,29 @@ async fn execute_compute_shader(device: &wgpu::Device, queue: &wgpu::Queue, keys
 	// FIXME: In reality it would be better to predict max buffer size based on bruteforcer configuration, 
 	// but this sounds like work future me
 	let output_buffer_size: u64 = (USED_DATA_LENGTH * std::mem::size_of::<u32>()) as u64;
-	// cpu_side buffer describes empty buffer that will copy data from the shader (GPU) side at the end
+	// NOTE:
+	// cpu_side buffer describes empty buffer that will copy data from the shader (GPU) side at the end.
+	// (cpu_side buffer is used once to read shader execution result from output storage buffer)
+	// gpu_side buffer describes buffer that will be used on the shader (GPU) side.
+
 	let output_buffer_cpu_side = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("Output buffer on CPU side"),
         size: output_buffer_size,
         usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
         mapped_at_creation: false,
     });
-	// gpu_side buffer describes buffer that will be used on the shader (GPU) side.
 	let output_buffer_gpu_side = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Output buffer on GPU side"),
 		// Placeholder for gpu output buffer is an array of 0 that will be replaced later with the actual data
         contents: bytemuck::cast_slice(vec![0_u32; output_buffer_size as usize].as_slice()),
         usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
+    });
+
+	let keys_buffer_gpu_side = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Keys buffer"),
+		// Placeholder for gpu output buffer is an array of 0 that will be replaced later with the actual data
+        contents: bytemuck::cast_slice(keys),
+        usage: wgpu::BufferUsages::STORAGE,
     });
 
 	// A pipeline specifies the operation of a shader.
@@ -48,22 +58,27 @@ async fn execute_compute_shader(device: &wgpu::Device, queue: &wgpu::Queue, keys
 	// NOTE: I'm lazy to describe what is bind group, bind group layout and what it has to do with 
 	// the same thing on the GPU side
 
-    let output_bind_group_layout = compute_pipeline.get_bind_group_layout(0);
-	let output_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+    let bind_group_layout = compute_pipeline.get_bind_group_layout(0);
+	let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: None,
-        layout: &output_bind_group_layout,
-        entries: &[wgpu::BindGroupEntry {
-            binding: 0,
-            resource: output_buffer_gpu_side.as_entire_binding(),
-        }],
+        layout: &bind_group_layout,
+        entries: &[
+			wgpu::BindGroupEntry {
+				binding: 0,
+				resource: output_buffer_gpu_side.as_entire_binding(),
+			},
+			wgpu::BindGroupEntry {
+				binding: 1,
+				resource: keys_buffer_gpu_side.as_entire_binding(),
+			},
+		],
     });
 
 	let mut command_encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 	{
 		let mut compute_pass = command_encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
         compute_pass.set_pipeline(&compute_pipeline);
-        compute_pass.set_bind_group(0, &output_bind_group, &[]);
-        // compute_pass.set_bind_group(1, &bruteforcer_output_bind_group, &[]);
+        compute_pass.set_bind_group(0, &bind_group, &[]);
         compute_pass.insert_debug_marker("l2a bruteforcer");
 		// TODO: scale this later
         compute_pass.dispatch_workgroups(keys.len() as u32, 1, 1);
