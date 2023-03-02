@@ -17,16 +17,37 @@ var<storage, read> input_keys: array<array<u32, 7>>;
 var<uniform> data: array<vec4<u32>, 128>;
 
 fn l2a(key: array<u32, 7>) -> u32 {
-    return data[0][0];
+    var data_index: u32 = 0u;
+	var printable_data_index: u32 = 0u;
+    var data_removed_count: u32 = 0u;
+
+    var key_index: u32 = 0u;
+    var i: u32 = 511u;
+
+    loop {
+        if (i < 511u - 25u) {
+            break;
+        }
+
+        data_index = (data_index + key[key_index]) % i;
+        printable_data_index = data_index + data_removed_count;
+        key_index = (key_index + 1u) % 7u;
+
+        output_buffer[i - 511u] = data[data_index / 4u][data_index % 4u];
+        data_removed_count += 1u;
+    }
+
+    return 420u;
 }
 
-// Thanks __noop__ :)
 fn l2a_chars_count() {
-	// TODO:
+	// TODO: implement __noop__'s idea on GPU side
 }
 
 @compute
 @workgroup_size(1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
+    // NOTE: This is too long to explaion, just don't mind this for now, ok?
+    // I'll polish and explain everything later
     output_buffer[global_id.x] = l2a(input_keys[global_id.x]);
 }
