@@ -8,16 +8,17 @@
 @group(0)
 @binding(0)
 // FIXME: Can I just change this to a runtime-sized array?
-// TODO: readonly
-var<storage, read_write> input_keys: array<array<u32, 7>>;
+var<storage, read_write> output_buffer: array<u32, 512>;
 
+/*
 @group(1)
 @binding(0)
 // FIXME: Can I just change this to a runtime-sized array?
 // TODO: readonly
-var<storage, read_write> output_buffer: array<u32, 50>;
+var<storage, read_write> input_keys: array<array<u32, 7>>;
+*/
 
-fn l2a(key: array<u32, 7>) -> u32{
+fn l2a(key: u32) -> u32{
     return 420u;
 }
 
@@ -29,6 +30,5 @@ fn l2a_chars_count() {
 @compute
 @workgroup_size(1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
-	// FIXME: fuuuuuuuuuuuuck....
-    output_buffer[global_id.x] = l2a(input_keys[global_id.x]);
+    output_buffer[global_id.x] = l2a(output_buffer[global_id.x]);
 }

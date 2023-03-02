@@ -5,11 +5,13 @@ use wgpu::{
 	self, util::DeviceExt
 };
 
-// WARNING: Key length is hardcoded AND IT'S NOT SYNCED between .wgsl file at the moment. 
+use crate::arg_lib;
+
+// WARNING: Those values are hardcoded AND NOT SYNCED between .wgsl file at the moment. 
 // This is very bad and will be changed later
 const KEY_LENGTH: usize = 7;
+const USED_DATA_LENGTH: usize = arg_lib::DATA4_LEN;
 
-// TODO: Check out .wgsl specifications (VERY helpful): https://www.w3.org/TR/WGSL/#numeric-literals
 async fn execute_compute_shader(device: &wgpu::Device, queue: &wgpu::Queue, keys: &[[u32; KEY_LENGTH]]) -> Result<(), wgpu::Error> {
 	// Loading compute shader
 	let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -17,36 +19,24 @@ async fn execute_compute_shader(device: &wgpu::Device, queue: &wgpu::Queue, keys
 		source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("gota_go_fast.wgsl")))
 	});
 
-	// Buffer with array of keys.
-	// Usage allowing the buffer to be:
-    //  - A storage buffer (can be bound within a bind group and thus available to a shader).
-    //  - The destination of a copy.
-    //  - The source of a copy.
-	let storage_keys_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-		label: Some("Keys buffer"),
-		contents: bytemuck::cast_slice(keys),
-		// FIXME: How do I change this to leave readonly access?!
-		usage: wgpu::BufferUsages::STORAGE,
-	});
+	// FIXME: In reality it would be better to predict max buffer size based on bruteforcer configuration, 
+	// but this sounds like work future me
+	let output_buffer_size: u64 = (USED_DATA_LENGTH * std::mem::size_of::<u32>()) as u64;
+	// cpu_side buffer describes empty buffer that will copy data from the shader (GPU) side at the end
+	let output_buffer_cpu_side = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("Output buffer on CPU side"),
+        size: output_buffer_size,
+        usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    });
+	// gpu_side buffer describes buffer that will be used on the shader (GPU) side.
+	let output_buffer_gpu_side = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Output buffer on GPU side"),
+		// Placeholder for gpu output buffer is an array of 0 that will be replaced later with the actual data
+        contents: bytemuck::cast_slice(vec![0_u32; output_buffer_size as usize].as_slice()),
+        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
+    });
 
-	// WARNING: THIS IS REALLY BAD. REMOVE LATER AFTER TESTING
-	const EXPECTED_OUTPUT_LENGTH: usize = 50;
-	const OUTPUT_BUFFER_SIZE: u64 = (EXPECTED_OUTPUT_LENGTH * std::mem::size_of::<u32>()) as u64;
-
-	let staging_buffer_thing = device.create_buffer(&wgpu::BufferDescriptor {
-		label: Some("Staging wierd thing"),
-		size: OUTPUT_BUFFER_SIZE,
-		usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-		mapped_at_creation: true,
-	});
-
-	// Using empty array as init value <-- WARNING: NOTE: THAT'S THE KEY!
-	let bruteforcer_output_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-		label: Some("Output buffer"),
-		contents: bytemuck::cast_slice(&[0_u32; 50]),
-		usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
-	});
-	
 	// A pipeline specifies the operation of a shader.
     let compute_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
         label: None,
@@ -55,65 +45,51 @@ async fn execute_compute_shader(device: &wgpu::Device, queue: &wgpu::Queue, keys
         entry_point: "main",
     });
 
-	// NOTE: Code below prepares buffer data for shader buffer on the GPU with the same binding index
-	// On shader side it looks like this: `layout(set = 0, binding = 0) buffer`
-    let keys_bind_group_layout = compute_pipeline.get_bind_group_layout(0);
-    let keys_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+	// NOTE: I'm lazy to describe what is bind group, bind group layout and what it has to do with 
+	// the same thing on the GPU side
+
+    let output_bind_group_layout = compute_pipeline.get_bind_group_layout(0);
+	let output_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: None,
-        layout: &keys_bind_group_layout,
-        entries: &[
-			wgpu::BindGroupEntry {
-            	binding: 0,
-            	resource: storage_keys_buffer.as_entire_binding(),
-        	}
-		],
-    });
-	let bruteforcer_output_bind_group_layout = compute_pipeline.get_bind_group_layout(1);
-    let bruteforcer_output_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: None,
-        layout: &bruteforcer_output_bind_group_layout,
-        entries: &[
-			wgpu::BindGroupEntry {
-            	binding: 0,
-            	resource: bruteforcer_output_buffer.as_entire_binding(),
-        	}
-		],
+        layout: &output_bind_group_layout,
+        entries: &[wgpu::BindGroupEntry {
+            binding: 0,
+            resource: output_buffer_gpu_side.as_entire_binding(),
+        }],
     });
 
 	let mut command_encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 	{
 		let mut compute_pass = command_encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
         compute_pass.set_pipeline(&compute_pipeline);
-        compute_pass.set_bind_group(0, &keys_bind_group, &[]);
-        compute_pass.set_bind_group(1, &bruteforcer_output_bind_group, &[]);
+        compute_pass.set_bind_group(0, &output_bind_group, &[]);
+        // compute_pass.set_bind_group(1, &bruteforcer_output_bind_group, &[]);
         compute_pass.insert_debug_marker("l2a bruteforcer");
 		// TODO: scale this later
         compute_pass.dispatch_workgroups(keys.len() as u32, 1, 1);
 	}
+
+	// NOTE(Nik4ant): Those 2 comments were copied from official example and I understand only second one...
 	// Sets adds copy operation to command encoder.
     // Will copy data from storage buffer on GPU to staging buffer on CPU.
-    command_encoder.copy_buffer_to_buffer(&bruteforcer_output_buffer, 0, &staging_buffer_thing, 0, OUTPUT_BUFFER_SIZE);
-	
+    command_encoder.copy_buffer_to_buffer(&output_buffer_gpu_side, 0, &output_buffer_cpu_side, 0, output_buffer_size);
 	queue.submit(Some(command_encoder.finish()));
-	let staging_buffer_thing_slice = staging_buffer_thing.slice(..);
-	// This will map execution result to keys_buffer_slice
+
+	let output_buffer_slice = output_buffer_cpu_side.slice(..);
 	let (sender, receiver) = futures_intrusive::channel::shared::oneshot_channel();
-    staging_buffer_thing_slice.map_async(wgpu::MapMode::Read, move |v| sender.send(v).unwrap());
+    output_buffer_slice.map_async(wgpu::MapMode::Read, move |v| sender.send(v).unwrap());
 
 	device.poll(wgpu::Maintain::Wait);
 
 	// Awaiting for data from the GPU
 	if let Some(Ok(())) = receiver.receive().await {
-		// 
-		let data = staging_buffer_thing_slice.get_mapped_range();
+		let data = output_buffer_slice.get_mapped_range();
 		let result: Vec<u32> = bytemuck::cast_slice(&data).to_vec();
-
+		
 		println!("SHADER OUTPUT: {:?}", result);
 		// Freeing buffer from the memory, BUT FIRST it's required to drop all mapped views
 		drop(data);
-		storage_keys_buffer.unmap();
-		bruteforcer_output_buffer.unmap();
-		staging_buffer_thing.unmap();
+		output_buffer_cpu_side.unmap();
 	}
 
 	Ok(())
