@@ -4,21 +4,20 @@
 // Arrays: https://www.w3.org/TR/WGSL/#array-types
 // NOTE: Is this a thing to create an array of arrays? https://www.w3.org/TR/WGSL/#composite-types
 
-
 @group(0)
 @binding(0)
-// FIXME: Can I just change this to a runtime-sized array?
 var<storage, read_write> output_buffer: array<u32, 512>;
-
 
 @group(0)
 @binding(1)
-// FIXME: Can I just change this to a runtime-sized array?
 var<storage, read> input_keys: array<array<u32, 7>>;
 
+@group(1)
+@binding(0)
+var<uniform> data: array<vec4<u32>, 128>;
 
 fn l2a(key: array<u32, 7>) -> u32 {
-    return key[0];
+    return data[0][0];
 }
 
 // Thanks __noop__ :)

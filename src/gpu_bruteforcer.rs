@@ -5,23 +5,31 @@ use wgpu::{
 	self, util::DeviceExt
 };
 
+use bytemuck::NoUninit;
+
 use crate::arg_lib;
+
+#[repr(align(16))] 
+#[repr(C)]
+#[derive(Debug)]
+#[derive(Clone, Copy, NoUninit)]
+struct GpuAlignedData([u32; 4]);
 
 // WARNING: Those values are hardcoded AND NOT SYNCED between .wgsl file at the moment. 
 // This is very bad and will be changed later
 const KEY_LENGTH: usize = 7;
-const USED_DATA_LENGTH: usize = arg_lib::DATA4_LEN;
+const USED_DATA_LENGTH: usize = arg_lib::DATA4_GPU_ALIGNED.len();
 
-async fn execute_compute_shader(device: &wgpu::Device, queue: &wgpu::Queue, keys: &[[u32; KEY_LENGTH]]) -> Result<(), wgpu::Error> {
+async fn execute_compute_shader(device: &wgpu::Device, queue: &wgpu::Queue, keys: &[[u32; KEY_LENGTH]], data: &[GpuAlignedData; 512 / 4]) -> Result<(), wgpu::Error> {
 	// Loading compute shader
 	let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
 		label: Some("Bruteforcer's compute shader"),
 		source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("gota_go_fast.wgsl")))
 	});
 
-	// FIXME: In reality it would be better to predict max buffer size based on bruteforcer configuration, 
-	// but this sounds like work future me
-	let output_buffer_size: u64 = (USED_DATA_LENGTH * std::mem::size_of::<u32>()) as u64;
+	// FIXME: In reality it would be better to predict max buffer size based on bruteforcer configuration
+	// (sounds like work future me)
+	let output_buffer_size: u64 = (data.len() * std::mem::size_of::<u32>()) as u64;
 	// NOTE:
 	// cpu_side buffer describes empty buffer that will copy data from the shader (GPU) side at the end.
 	// (cpu_side buffer is used once to read shader execution result from output storage buffer)
@@ -42,9 +50,14 @@ async fn execute_compute_shader(device: &wgpu::Device, queue: &wgpu::Queue, keys
 
 	let keys_buffer_gpu_side = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Keys buffer"),
-		// Placeholder for gpu output buffer is an array of 0 that will be replaced later with the actual data
         contents: bytemuck::cast_slice(keys),
         usage: wgpu::BufferUsages::STORAGE,
+    });
+
+	let data_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Data uniform buffer"),
+        contents: bytemuck::cast_slice(data),
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
     });
 
 	// A pipeline specifies the operation of a shader.
@@ -73,12 +86,25 @@ async fn execute_compute_shader(device: &wgpu::Device, queue: &wgpu::Queue, keys
 			},
 		],
     });
+	// Bind group for uniform data
+	let uniform_bind_group_layout = compute_pipeline.get_bind_group_layout(1);
+	let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+		label: Some("Bind group for uniform values"),
+		layout: &&uniform_bind_group_layout,
+		entries: &[
+			wgpu::BindGroupEntry {
+				binding: 0,
+				resource: data_uniform_buffer.as_entire_binding()
+			}
+		],
+	});
 
 	let mut command_encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 	{
 		let mut compute_pass = command_encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
         compute_pass.set_pipeline(&compute_pipeline);
         compute_pass.set_bind_group(0, &bind_group, &[]);
+        compute_pass.set_bind_group(1, &uniform_bind_group, &[]);
         compute_pass.insert_debug_marker("l2a bruteforcer");
 		// TODO: scale this later
         compute_pass.dispatch_workgroups(keys.len() as u32, 1, 1);
@@ -147,9 +173,13 @@ async fn setup_gpu() -> (wgpu::Device, wgpu::Queue) {
 
 async fn start_bruteforcer() {
 	let keys = [[24, 4, 25, 15, 25, 15, 25]];
+	let aligned_data: [GpuAlignedData; 512 / 4] = arg_lib::DATA4_GPU_ALIGNED.chunks(4).into_iter().map(|x| GpuAlignedData(x.try_into().unwrap()))
+		.collect::<Vec<GpuAlignedData>>()
+		.try_into()
+		.unwrap();
 
 	let (device, queue) = setup_gpu().await;
-    let gpu_output = execute_compute_shader(&device, &queue, &keys).await.unwrap();
+    let gpu_output = execute_compute_shader(&device, &queue, &keys, &aligned_data).await.unwrap();
 
     println!("Result: [{:?}]", gpu_output);
     #[cfg(target_arch = "wasm32")]
