@@ -128,6 +128,10 @@ async fn execute_compute_shader(device: &wgpu::Device, queue: &wgpu::Queue, keys
 		let result: Vec<u32> = bytemuck::cast_slice(&data).to_vec();
 		
 		println!("SHADER OUTPUT: {:?}", result);
+		println!("Formatted output:");
+		for part in result {
+			print!("{}", part as u8 as char);
+		}
 		// Freeing buffer from the memory, BUT FIRST it's required to drop all mapped views
 		drop(data);
 		output_buffer_cpu_side.unmap();
@@ -181,7 +185,7 @@ async fn start_bruteforcer() {
 	let (device, queue) = setup_gpu().await;
     let gpu_output = execute_compute_shader(&device, &queue, &keys, &aligned_data).await.unwrap();
 
-    println!("Result: [{:?}]", gpu_output);
+    // println!("Result: [{:?}]", gpu_output);
     #[cfg(target_arch = "wasm32")]
     log::info!("Result: [{:?}]", gpu_output);
 }

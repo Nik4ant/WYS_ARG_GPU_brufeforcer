@@ -14,9 +14,10 @@ var<storage, read> input_keys: array<array<u32, 7>>;
 
 @group(1)
 @binding(0)
+
 var<uniform> data: array<vec4<u32>, 128>;
 
-fn l2a(key: array<u32, 7>) -> u32 {
+fn l2a() -> u32 {
     var data_index: u32 = 0u;
 	var printable_data_index: u32 = 0u;
     var data_removed_count: u32 = 0u;
@@ -29,15 +30,17 @@ fn l2a(key: array<u32, 7>) -> u32 {
             break;
         }
 
-        data_index = (data_index + key[key_index]) % i;
+        data_index = (data_index + input_keys[0][key_index]) % i;
         printable_data_index = data_index + data_removed_count;
         key_index = (key_index + 1u) % 7u;
 
-        output_buffer[i - 511u] = data[data_index / 4u][data_index % 4u];
+        output_buffer[511u - i] = data[printable_data_index / 4u][printable_data_index % 4u];
         data_removed_count += 1u;
+
+        i -= 1u;
     }
 
-    return 420u;
+    return 42u;
 }
 
 fn l2a_chars_count() {
@@ -49,5 +52,5 @@ fn l2a_chars_count() {
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // NOTE: This is too long to explaion, just don't mind this for now, ok?
     // I'll polish and explain everything later
-    output_buffer[global_id.x] = l2a(input_keys[global_id.x]);
+    l2a();
 }
