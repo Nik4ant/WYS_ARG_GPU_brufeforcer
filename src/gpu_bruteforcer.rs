@@ -1,26 +1,24 @@
 use std::{
 	borrow::Cow
 };
+
 use wgpu::{
 	self, util::DeviceExt
 };
+use bytemuck;
 
-use bytemuck::NoUninit;
+use crate::arg_lib::{
+	GPU_ALIGNED_DATA4_LEN, GPU_ALIGNED_DATA4,
+	GpuAlignedValue
+};
 
-use crate::arg_lib;
-
-#[repr(align(16))] 
-#[repr(C)]
-#[derive(Debug)]
-#[derive(Clone, Copy, NoUninit)]
-struct GpuAlignedData([u32; 4]);
 
 // WARNING: Those values are hardcoded AND NOT SYNCED between .wgsl file at the moment. 
 // This is very bad and will be changed later
 const KEY_LENGTH: usize = 7;
-const USED_DATA_LENGTH: usize = arg_lib::DATA4_GPU_ALIGNED.len();
 
-async fn execute_compute_shader(device: &wgpu::Device, queue: &wgpu::Queue, keys: &[[u32; KEY_LENGTH]], data: &[GpuAlignedData; 512 / 4]) -> Result<(), wgpu::Error> {
+
+async fn execute_compute_shader(device: &wgpu::Device, queue: &wgpu::Queue, keys: &[[u32; KEY_LENGTH]], data: &[GpuAlignedValue; GPU_ALIGNED_DATA4_LEN]) -> Result<(), wgpu::Error> {
 	// Loading compute shader
 	let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
 		label: Some("Bruteforcer's compute shader"),
@@ -43,7 +41,7 @@ async fn execute_compute_shader(device: &wgpu::Device, queue: &wgpu::Queue, keys
     });
 	let output_buffer_gpu_side = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Output buffer on GPU side"),
-		// Placeholder for gpu output buffer is an array of 0 that will be replaced later with the actual data
+		// Placeholder for gpu output buffer is an array of 0 that will be replaced with the actual data later
         contents: bytemuck::cast_slice(vec![0_u32; output_buffer_size as usize].as_slice()),
         usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
     });
@@ -177,11 +175,7 @@ async fn setup_gpu() -> (wgpu::Device, wgpu::Queue) {
 
 async fn start_bruteforcer() {
 	let keys = [[24, 4, 25, 15, 25, 15, 25]];
-	let aligned_data: [GpuAlignedData; 512 / 4] = arg_lib::DATA4_GPU_ALIGNED.chunks(4).into_iter().map(|x| GpuAlignedData(x.try_into().unwrap()))
-		.collect::<Vec<GpuAlignedData>>()
-		.try_into()
-		.unwrap();
-
+	let aligned_data = GPU_ALIGNED_DATA4.clone();
 	let (device, queue) = setup_gpu().await;
     let gpu_output = execute_compute_shader(&device, &queue, &keys, &aligned_data).await.unwrap();
 
