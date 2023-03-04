@@ -3,21 +3,6 @@
 version = 3
 
 [[package]]
-name = "WYS_ARG_experiment"
-version = "0.1.0"
-dependencies = [
- "arrayvec",
- "bytemuck",
- "env_logger",
- "futures-intrusive",
- "lazy_static",
- "log",
- "pollster",
- "rustc-hash",
- "wgpu",
-]
-
-[[package]]
 name = "addr2line"
 version = "0.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1153,3 +1138,15 @@ name = "windows_x86_64_msvc"
 version = "0.42.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "447660ad36a13288b1db4d4248e857b510e8c3a225c822ba4fb748c0aafecffd"
+
+[[package]]
+name = "wys_arg_experiment"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "env_logger",
+ "futures-intrusive",
+ "lazy_static",
+ "pollster",
+ "wgpu",
+]

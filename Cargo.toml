@@ -1,5 +1,5 @@
 [package]
-name = "WYS_ARG_experiment"
+name = "wys_arg_experiment"
 version = "0.1.0"
 edition = "2021"
 
@@ -16,10 +16,7 @@ overflow-checks = false
 [dependencies]
 wgpu = "0.15"
 env_logger = "0.10"
-log = "0.4"
 futures-intrusive = "^0.5"
 bytemuck = { version="1.13.0", features=["derive"] }
 pollster = "0.3.0"
 lazy_static = "1.4.0"
-rustc-hash = "1.1.0"
-arrayvec = "0.7.2"

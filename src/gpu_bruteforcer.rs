@@ -8,17 +8,17 @@ use wgpu::{
 use bytemuck;
 
 use crate::arg_lib::{
-	GPU_ALIGNED_DATA4_LEN, GPU_ALIGNED_DATA4,
+	GPU_ALIGNED_DATA4,
 	GpuAlignedValue
 };
 
 
-// WARNING: Those values are hardcoded AND NOT SYNCED between .wgsl file at the moment. 
+// WARNING: Value below are hardcoded AND NOT SYNCED between .wgsl file at the moment. 
 // This is very bad and will be changed later
 const KEY_LENGTH: usize = 7;
 
 
-async fn execute_compute_shader(device: &wgpu::Device, queue: &wgpu::Queue, keys: &[[u32; KEY_LENGTH]], data: &[GpuAlignedValue; GPU_ALIGNED_DATA4_LEN]) -> Result<(), wgpu::Error> {
+async fn execute_compute_shader(device: &wgpu::Device, queue: &wgpu::Queue, keys: &[[u32; KEY_LENGTH]], data: &[GpuAlignedValue]) -> Result<(), wgpu::Error> {
 	// Loading compute shader
 	let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
 		label: Some("Bruteforcer's compute shader"),
