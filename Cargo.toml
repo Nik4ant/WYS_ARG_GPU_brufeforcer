@@ -8,10 +8,8 @@ opt-level = 0
 
 [profile.release]
 opt-level = 3
-overflow-checks = false
 [profile.release.'*']
 opt-level = 3
-overflow-checks = false
 
 [dependencies]
 wgpu = "0.15"

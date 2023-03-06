@@ -1,5 +1,6 @@
 use std::{
-	borrow::Cow
+	borrow::Cow,
+	time::Instant
 };
 
 use wgpu::{
@@ -13,6 +14,9 @@ use crate::arg_lib::{
 };
 
 
+const WORKGROUP_X: u32 = 16;
+const WORKGROUP_Y: u32 = 16;
+const WORKGROUP_Z: u32 = 1;
 // WARNING: Value below are hardcoded AND NOT SYNCED between .wgsl file at the moment. 
 // This is very bad and will be changed later
 const KEY_LENGTH: usize = 7;
@@ -27,7 +31,7 @@ async fn execute_compute_shader(device: &wgpu::Device, queue: &wgpu::Queue, keys
 
 	// FIXME: In reality it would be better to predict max buffer size based on bruteforcer configuration
 	// (sounds like work future me)
-	let output_buffer_size: u64 = (data.len() * std::mem::size_of::<u32>()) as u64;
+	let output_buffer_size: u64 = ((WORKGROUP_X * WORKGROUP_Y * WORKGROUP_Z) as usize * std::mem::size_of::<u32>()) as u64;
 	// NOTE:
 	// cpu_side buffer describes empty buffer that will copy data from the shader (GPU) side at the end.
 	// (cpu_side buffer is used once to read shader execution result from output storage buffer)
@@ -105,31 +109,32 @@ async fn execute_compute_shader(device: &wgpu::Device, queue: &wgpu::Queue, keys
         compute_pass.set_bind_group(1, &uniform_bind_group, &[]);
         compute_pass.insert_debug_marker("l2a bruteforcer");
 		// TODO: scale this later
-        compute_pass.dispatch_workgroups(keys.len() as u32, 1, 1);
+        compute_pass.dispatch_workgroups(WORKGROUP_X, WORKGROUP_Y, WORKGROUP_Z);
 	}
 
 	// NOTE(Nik4ant): Those 2 comments were copied from official example and I understand only second one...
 	// Sets adds copy operation to command encoder.
     // Will copy data from storage buffer on GPU to staging buffer on CPU.
     command_encoder.copy_buffer_to_buffer(&output_buffer_gpu_side, 0, &output_buffer_cpu_side, 0, output_buffer_size);
+	let start = std::time::Instant::now();
 	queue.submit(Some(command_encoder.finish()));
 
 	let output_buffer_slice = output_buffer_cpu_side.slice(..);
 	let (sender, receiver) = futures_intrusive::channel::shared::oneshot_channel();
     output_buffer_slice.map_async(wgpu::MapMode::Read, move |v| sender.send(v).unwrap());
-
 	device.poll(wgpu::Maintain::Wait);
-
 	// Awaiting for data from the GPU
 	if let Some(Ok(())) = receiver.receive().await {
 		let data = output_buffer_slice.get_mapped_range();
 		let result: Vec<u32> = bytemuck::cast_slice(&data).to_vec();
+		println!("Time elapsed: {} microseconds (execution + reading array back to CPU)", start.elapsed().as_micros());
 		
 		println!("SHADER OUTPUT: {:?}", result);
-		println!("Formatted output:");
+		println!("Formatted output (TEMPORARY DISABLED):");
+		/* 
 		for part in result {
 			print!("{}", part as u8 as char);
-		}
+		}*/
 		// Freeing buffer from the memory, BUT FIRST it's required to drop all mapped views
 		drop(data);
 		output_buffer_cpu_side.unmap();
@@ -169,6 +174,8 @@ async fn setup_gpu() -> (wgpu::Device, wgpu::Queue) {
     if adapter_info.vendor == 0x10005 {
         panic!("Wgpu doesn't support this device. Official example suggests to: \"skip on LavaPipe temporarily\"");
     }
+
+	println!("Device workgroups invocations limit: {}", device.limits().max_compute_invocations_per_workgroup);
 
 	return (device, queue);
 }
