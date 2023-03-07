@@ -14,12 +14,12 @@ use crate::arg_lib::{
 };
 
 
-const WORKGROUP_X: u32 = 16;
-const WORKGROUP_Y: u32 = 16;
-const WORKGROUP_Z: u32 = 1;
 // WARNING: Value below are hardcoded AND NOT SYNCED between .wgsl file at the moment. 
 // This is very bad and will be changed later
 const KEY_LENGTH: usize = 7;
+const WORKGROUP_X: u32 = 16;
+const WORKGROUP_Y: u32 = 16;
+const WORKGROUP_Z: u32 = 1;
 
 
 async fn execute_compute_shader(device: &wgpu::Device, queue: &wgpu::Queue, keys: &[[u32; KEY_LENGTH]], data: &[GpuAlignedValue]) -> Result<(), wgpu::Error> {
@@ -29,9 +29,7 @@ async fn execute_compute_shader(device: &wgpu::Device, queue: &wgpu::Queue, keys
 		source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("gota_go_fast.wgsl")))
 	});
 
-	// FIXME: In reality it would be better to predict max buffer size based on bruteforcer configuration
-	// (sounds like work future me)
-	let output_buffer_size: u64 = ((WORKGROUP_X * WORKGROUP_Y * WORKGROUP_Z) as usize * std::mem::size_of::<u32>()) as u64;
+	let output_buffer_size: u64 = ((WORKGROUP_X * WORKGROUP_Y * WORKGROUP_Z) as usize * std::mem::size_of::<[u32; 2]>()) as u64;
 	// NOTE:
 	// cpu_side buffer describes empty buffer that will copy data from the shader (GPU) side at the end.
 	// (cpu_side buffer is used once to read shader execution result from output storage buffer)
@@ -41,7 +39,7 @@ async fn execute_compute_shader(device: &wgpu::Device, queue: &wgpu::Queue, keys
         label: Some("Output buffer on CPU side"),
         size: output_buffer_size,
         usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
-        mapped_at_creation: false,
+        mapped_at_creation: false,  // it will be mapped manually later on
     });
 	let output_buffer_gpu_side = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Output buffer on GPU side"),
@@ -108,7 +106,6 @@ async fn execute_compute_shader(device: &wgpu::Device, queue: &wgpu::Queue, keys
         compute_pass.set_bind_group(0, &bind_group, &[]);
         compute_pass.set_bind_group(1, &uniform_bind_group, &[]);
         compute_pass.insert_debug_marker("l2a bruteforcer");
-		// TODO: scale this later
         compute_pass.dispatch_workgroups(WORKGROUP_X, WORKGROUP_Y, WORKGROUP_Z);
 	}
 
@@ -126,7 +123,7 @@ async fn execute_compute_shader(device: &wgpu::Device, queue: &wgpu::Queue, keys
 	// Awaiting for data from the GPU
 	if let Some(Ok(())) = receiver.receive().await {
 		let data = output_buffer_slice.get_mapped_range();
-		let result: Vec<u32> = bytemuck::cast_slice(&data).to_vec();
+		let result: Vec<[u32; 2]> = bytemuck::cast_slice(&data).to_vec();
 		println!("Time elapsed: {} microseconds (execution + reading array back to CPU)", start.elapsed().as_micros());
 		
 		println!("SHADER OUTPUT: {:?}", result);
