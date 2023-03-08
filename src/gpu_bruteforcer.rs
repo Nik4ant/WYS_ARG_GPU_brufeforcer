@@ -29,7 +29,7 @@ async fn execute_compute_shader(device: &wgpu::Device, queue: &wgpu::Queue, keys
 		source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("gota_go_fast.wgsl")))
 	});
 
-	let output_buffer_size: u64 = ((WORKGROUP_X * WORKGROUP_Y * WORKGROUP_Z) as usize * std::mem::size_of::<[u32; 2]>()) as u64;
+	let output_buffer_size: u64 = ((WORKGROUP_X * WORKGROUP_Y * WORKGROUP_Z) as usize * std::mem::size_of::<[u32; 4]>()) as u64;
 	// NOTE:
 	// cpu_side buffer describes empty buffer that will copy data from the shader (GPU) side at the end.
 	// (cpu_side buffer is used once to read shader execution result from output storage buffer)
@@ -123,10 +123,10 @@ async fn execute_compute_shader(device: &wgpu::Device, queue: &wgpu::Queue, keys
 	// Awaiting for data from the GPU
 	if let Some(Ok(())) = receiver.receive().await {
 		let data = output_buffer_slice.get_mapped_range();
-		let result: Vec<[u32; 2]> = bytemuck::cast_slice(&data).to_vec();
+		let result: Vec<[u32; 4]> = bytemuck::cast_slice(&data).to_vec();
 		println!("Time elapsed: {} microseconds (execution + reading array back to CPU)", start.elapsed().as_micros());
 		
-		println!("SHADER OUTPUT: {:?}", result);
+		// println!("SHADER OUTPUT: {:?}", result);
 		println!("Formatted output (TEMPORARY DISABLED):");
 		/* 
 		for part in result {

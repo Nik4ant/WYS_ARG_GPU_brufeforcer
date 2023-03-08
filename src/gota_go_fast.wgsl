@@ -12,7 +12,7 @@ const KEY_LENGTH: u32 = 7u;
 
 @group(0)
 @binding(0)
-var<storage, read_write> output_buffer: array<vec2<u32>, ALIGNED_DATA_SIZE>;
+var<storage, read_write> output_buffer: array<vec4<u32>, ALIGNED_DATA_SIZE>;
 
 @group(0)
 @binding(1)
@@ -25,7 +25,7 @@ var<uniform> data: array<vec4<u32>, UNIFORM_DATA_SIZE>;
 
 
 
-fn l2a(local_invocation_id: u32) -> vec2<u32> {
+fn l2a(local_invocation_id: u32) -> vec4<u32> {
     /*
     data_removed_count = [current iterations count]
     printable_data_index = data_index + data_removed_count
@@ -33,8 +33,8 @@ fn l2a(local_invocation_id: u32) -> vec2<u32> {
     */
     let expected_output_size = get_correct_chars_count();
 
-    var result: vec2<u32> = vec2<u32>(0u, 0u);
-    var last_decrypted_data: vec4<u32> = vec4<u32>(0u, 0u, 0u, 0u);  // TODO: use attomics or whatever to pack four u8 into single u32?
+    var result: vec4<u32> = vec4<u32>(0u, 0u, 0u, 0u);
+    var last_decrypted_data: vec4<u32> = vec4<u32>(0u, 0u, 0u, 0u);
     var data_index: u32 = 0u;
 
     var i: u32 = ACTUAL_DATA_SIZE;
@@ -61,13 +61,7 @@ fn l2a(local_invocation_id: u32) -> vec2<u32> {
             // "just" = 106u, 117u, 115u, 116u
             if (last_decrypted_data[0] == 106u && last_decrypted_data[1] == 117u && last_decrypted_data[2] == 115u && last_decrypted_data[3] == 116u) {
                 workgroupBarrier();
-                // TODO: replace with branchless analog
-                if (outer_loop_i > 32u) {
-                    result[0] |= (1u << (outer_loop_i));
-                }
-                else {
-                    result[1] |= (1u << (outer_loop_i - 32u));
-                }
+                result[outer_loop_i / 32u] |= (1u << (outer_loop_i % 32u));
                 break;
             }
 
@@ -75,7 +69,7 @@ fn l2a(local_invocation_id: u32) -> vec2<u32> {
         }
 
 
-        if (outer_loop_i == 64u) {
+        if (outer_loop_i == 32u * 4u) {
             break;
         }
         outer_loop_i += 1u;
@@ -92,10 +86,7 @@ fn get_correct_chars_count() -> u32 {
 }
 
 
-// TODO: Figure out how many individual "working cells" I can run. On this number depends overall perfomance
-// 
 @compute
-// 
 @workgroup_size(16, 16, 1)
 fn main(@builtin(local_invocation_index) local_index: u32) {
     output_buffer[local_index] = l2a(local_index);
