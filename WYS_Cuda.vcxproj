@@ -73,6 +73,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <SubSystem>Console</SubSystem>
       <AdditionalDependencies>cudart_static.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
     </Link>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
@@ -81,9 +82,12 @@
       <InterleaveSourceInPTX>true</InterleaveSourceInPTX>
       <NvccCompilation>compile</NvccCompilation>
       <EnableVirtualArchInFatbin>true</EnableVirtualArchInFatbin>
-      <Runtime>InheritFromHost</Runtime>
+      <Runtime>MT</Runtime>
       <TypeInfo>false</TypeInfo>
       <CodeGeneration>compute_72,sm_72</CodeGeneration>
+      <PtxAsOptionV>false</PtxAsOptionV>
+      <UseHostInclude>true</UseHostInclude>
+      <ExtensibleWholeProgramCompilation>true</ExtensibleWholeProgramCompilation>
     </CudaCompile>
     <CudaLink>
       <GPUDebugInfo>false</GPUDebugInfo>
@@ -91,6 +95,7 @@
     <CudaLink>
       <Optimization>O3</Optimization>
       <PerformDeviceLinkTimeOptimization>true</PerformDeviceLinkTimeOptimization>
+      <UseHostLibraryDependencies>true</UseHostLibraryDependencies>
     </CudaLink>
   </ItemDefinitionGroup>
   <ItemGroup>
