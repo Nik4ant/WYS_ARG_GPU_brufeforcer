@@ -150,9 +150,30 @@ pub fn l2a_inaccurate(data: &Vec<u8>, key: &Vec<usize>, keywords: &Vec<&[u8]>) -
 	false
 }
 
+pub fn l2a(data_source: &Vec<u8>, key: &Vec<usize>) -> Vec<u8> {
+	let mut result = vec![];
+
+	let mut data = data_source.clone();
+    let mut data_index: usize = 0;
+
+    let mut key_index: usize = 0;
+    let key_len: usize = key.len();
+    
+    for i in (1..=data.len()).rev() {
+        data_index = (data_index + key[key_index]) % i;
+        key_index = (key_index + 1) % key_len;
+
+		result.push(data[data_index]);
+		data.remove(data_index);
+    }
+
+	result
+}
+
+
 // Calculates how many chars can be safely decrypted using inacurate (fast) version of l2a
 // (Thanks __noop__ :)
-fn fl2a_output_chars_amount(key: &Vec<usize>, data_length: usize) -> usize {
+pub fn fl2a_output_chars_amount(key: &Vec<usize>, data_length: usize) -> usize {
 	let mut result = 0;
 	let mut current_index = 0;
 

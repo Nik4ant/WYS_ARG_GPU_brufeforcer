@@ -10,7 +10,9 @@ fn main() {
     println!("Key: {:?}", key);
     println!("Unaligned DATA: [u8; {}]", arg_lib::DATA4.len());
     println!("Aligned DATA: [[u32; 4]; {}] ({} items total)", arg_lib::GPU_ALIGNED_DATA4.len(), arg_lib::GPU_ALIGNED_DATA4.len() * 4);
-    
-    gpu_bruteforcer::start_bruteforcer_sync();
-   
+    // println!("ALIGNED DATA CONTENT:\n{:?}", arg_lib::DATA4);
+    // gpu_bruteforcer::start_bruteforcer_sync();
+    println!("{}", arg_lib::fl2a_output_chars_amount(&vec![26; 7], 511));
+    println!("{}", arg_lib::fl2a_output_chars_amount(&vec![26; 27], 392));
+    // println!("{}", arg_lib::l2a(&arg_lib::DATA4.to_vec(), &key));
 }
