@@ -1,3 +1,6 @@
+# NOTE:
+This branch (`wgsl-rust-archive`) was the first ever prototype, it reached it's maximum level of effeciency (due to how compute shaders in [wgsl](https://www.w3.org/TR/WGSL/) work at the time of the writting). That's why separate branch `cuda-version` exists...
+
 # WYS_ARG_GPU_brufeforcer
 This is a subproject for already existing [ARG toolchain](https://github.com/bipentihexium/wys_arg_tools). 
 
